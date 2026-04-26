@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Smart Emergency Routing</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+
+        body {
+            overflow: hidden;
+            background: #eef3f9;
+        }
+
+        #map {
+            position: absolute;
+            top: 72px;
+            left: 0;
+            width: 100%;
+            height: calc(100vh - 72px);
+            z-index: 1;
+        }
+
+        .topbar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 72px;
+            background: linear-gradient(90deg, #071a38, #0c2449);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 24px;
+            z-index: 1000;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .top-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .pill {
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.12);
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            border: 1px solid rgba(255,255,255,0.14);
+        }
+
+        .pill.live-on {
+            color: #22c55e;
+            font-weight: 700;
+        }
+
+        .sidebar {
+            position: absolute;
+            top: 92px;
+            left: 18px;
+            width: 350px;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 18px;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+            margin-bottom: 14px;
+            border: 1px solid rgba(255,255,255,0.7);
+        }
+
+        .card h3 {
+            font-size: 18px;
+            margin-bottom: 14px;
+            color: #1e293b;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #334155;
+        }
+
+        select, input[type="text"] {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid #d7deea;
+            background: #f8fbff;
+            font-size: 14px;
+            margin-bottom: 14px;
+            outline: none;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 52px;
+            height: 30px;
+        }
+
+        .switch input {
+            display: none;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: #cfd8e6;
+            transition: 0.3s;
+            border-radius: 999px;
+        }
+
+        .slider:before {
+            content: "";
+            position: absolute;
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            top: 4px;
+            background: white;
+            transition: 0.3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.16);
+        }
+
+        input:checked + .slider {
+            background: #22c55e;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 13px 14px;
+            border: none;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, #2563eb, #3b82f6);
+            color: white;
+            box-shadow: 0 8px 18px rgba(37,99,235,0.22);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .row input {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .row button {
+            width: 120px;
+            border-radius: 14px;
+            border: 1px solid #d3dce8;
+            background: white;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .info-text {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .summary-item {
+            background: #f8fbff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .summary-item .icon {
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .summary-item .value {
+            font-size: 18px;
+            font-weight: 800;
+            color: #111827;
+        }
+
+        .summary-item .label2 {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .hospital-item {
+            background: #f8fbff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: 0.2s ease;
+        }
+
+        .hospital-item:hover {
+            background: #eef5ff;
+            border-color: #bfd1ff;
+        }
+
+        .hospital-item strong {
+            display: block;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+
+        .hospital-item span {
+            color: #475569;
+            font-size: 13px;
+        }
+
+        .legend {
+            position: absolute;
+            top: 92px;
+            right: 18px;
+            width: 180px;
+            z-index: 1000;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #334155;
+        }
+
+        .legend-line {
+            width: 28px;
+            height: 6px;
+            border-radius: 999px;
+        }
+
+        .green { background: #22c55e; }
+        .orange { background: #f59e0b; }
+        .red { background: #ef4444; }
+
+        .bottom-bar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255,255,255,0.96);
+            border-radius: 22px;
+            padding: 18px 24px;
+            box-shadow: 0 10px 26px rgba(0,0,0,0.12);
+            display: flex;
+            gap: 28px;
+            min-width: 520px;
+        }
+
+        .bottom-stat .title {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 5px;
+        }
+
+        .bottom-stat .big {
+            font-size: 24px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .live-card {
+            position: absolute;
+            right: 18px;
+            bottom: 20px;
+            width: 220px;
+            background: linear-gradient(135deg, #07192f, #0d2d55);
+            color: white;
+            z-index: 1000;
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.28);
+        }
+
+        .live-card .title {
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        .live-card .sub {
+            font-size: 13px;
+            color: #c8dbff;
+            margin-top: 4px;
+            margin-bottom: 12px;
+        }
+
+        .bars {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            height: 40px;
+        }
+
+        .bars span {
+            width: 10px;
+            border-radius: 8px 8px 2px 2px;
+            background: linear-gradient(180deg, #22c55e, #06b6d4);
+        }
+
+        .bars span:nth-child(1) { height: 12px; }
+        .bars span:nth-child(2) { height: 18px; }
+        .bars span:nth-child(3) { height: 15px; }
+        .bars span:nth-child(4) { height: 26px; }
+        .bars span:nth-child(5) { height: 20px; }
+        .bars span:nth-child(6) { height: 34px; }
+        .bars span:nth-child(7) { height: 22px; }
+
+        @media (max-width: 950px) {
+            .sidebar {
+                width: 310px;
+            }
+
+            .bottom-bar {
+                min-width: auto;
+                width: calc(100% - 40px);
+                left: 20px;
+                transform: none;
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="topbar">
+        <div class="brand">
+            <span>🚑</span>
+            <span>Smart Emergency Routing</span>
+        </div>
+        <div class="top-right">
+            <div class="pill">Light</div>
+            <div class="pill" id="liveTrafficTop">Live Traffic: OFF</div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="sidebar">
+        <div class="card">
+            <h3>Route & Settings</h3>
+
+            <label>Emergency Vehicle</label>
+            <select id="vehicleType">
+                <option value="ambulance">🚑 Ambulance</option>
+                <option value="police">🚓 Police</option>
+                <option value="fire">🚒 Fire Brigade</option>
+            </select>
+
+            <label>Traffic Mode</label>
+            <select id="trafficMode">
+                <option value="low">🚗 Low</option>
+                <option value="medium" selected>🚙 Medium</option>
+                <option value="high">🚕 High</option>
+                <option value="rush_hour">🚦 Rush Hour</option>
+                <option value="accident">⚠ Accident</option>
+            </select>
+
+            <div class="toggle-row">
+                <label style="margin:0;">Use Live Traffic</label>
+                <label class="switch">
+                    <input type="checkbox" id="liveTrafficToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <button class="btn btn-primary" id="recalcBtn">⟳ Recalculate Route</button>
+
+            <div style="height:12px;"></div>
+
+            <div class="row">
+                <input type="text" id="hospitalSearch" placeholder="Hospital name">
+                <button id="searchBtn">Search</button>
+            </div>
+
+            <div class="info-text" id="flowInfo">
+                Click on map to set start point.  
+                For ambulance: choose hospital from nearby list or search.  
+                For police/fire: click start and end points.
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Selected Hospital</h3>
+            <div id="selectedHospitalName" style="font-size:16px;font-weight:700;color:#2563eb;">No hospital selected</div>
+            <div id="selectedHospitalAddress" style="font-size:13px;color:#64748b;margin-top:6px;">Dehradun, Uttarakhand</div>
+        </div>
+
+        <div class="card">
+            <h3>Route Summary</h3>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="icon">🚗</div>
+                    <div class="value" id="normalTime">--</div>
+                    <div class="label2">Normal</div>
+                </div>
+                <div class="summary-item">
+                    <div class="icon">🚑</div>
+                    <div class="value" id="emergencyTime">--</div>
+                    <div class="label2">Emergency</div>
+                </div>
+                <div class="summary-item">
+                    <div class="icon">🧠</div>
+                    <div class="value" id="gnnTime">--</div>
+                    <div class="label2">GNN</div>
+                </div>
+                <div class="summary-item">
+                    <div class="icon">🤖</div>
+                    <div class="value" id="rlTime">--</div>
+                    <div class="label2">RL</div>
+                </div>
+                <div class="summary-item">
+                    <div class="icon">⚡</div>
+                    <div class="value" id="savedTime">--</div>
+                    <div class="label2">Saved</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Top 3 Nearby Hospitals</h3>
+            <div id="hospitalList">
+                <div class="hospital-item">Click start point on map first</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="legend card">
+        <h3 style="margin-bottom:8px;">Traffic Legend</h3>
+        <div class="legend-item"><span class="legend-line green"></span> Low</div>
+        <div class="legend-item"><span class="legend-line orange"></span> Medium</div>
+        <div class="legend-item"><span class="legend-line red"></span> High</div>
+    </div>
+
+    <div class="bottom-bar">
+        <div class="bottom-stat">
+            <div class="title">Distance</div>
+            <div class="big" id="distanceValue">--</div>
+        </div>
+        <div class="bottom-stat">
+            <div class="title">ETA (Emergency)</div>
+            <div class="big" id="etaValue">--</div>
+        </div>
+        <div class="bottom-stat">
+            <div class="title">Last Updated</div>
+            <div class="big" id="updatedValue">--</div>
+        </div>
+    </div>
+
+    <div class="live-card">
+        <div class="title">Live Traffic</div>
+        <div class="sub" id="liveCardText">Updated just now</div>
+        <div class="bars">
+            <span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span>
+        </div>
+    </div>
+
+    <script>
+        let map = L.map('map').setView([30.3165, 78.0322], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+        }).addTo(map);
+
+        let start = null;
+        let end = null;
+        let startMarker = null;
+        let endMarker = null;
+
+        let normalLine = null;
+        let emergencyLine = null;
+        let gnnLine = null;
+        let rlLine = null;
+
+        let hospitalMarkers = [];
+        let selectedHospital = null;
+        let autoRefresh = null;
+
+        const vehicleType = document.getElementById("vehicleType");
+        const trafficMode = document.getElementById("trafficMode");
+        const liveTrafficToggle = document.getElementById("liveTrafficToggle");
+        const recalcBtn = document.getElementById("recalcBtn");
+        const hospitalSearch = document.getElementById("hospitalSearch");
+        const searchBtn = document.getElementById("searchBtn");
+        const hospitalList = document.getElementById("hospitalList");
+
+        function updateLiveUI() {
+            const pill = document.getElementById("liveTrafficTop");
+            const text = document.getElementById("liveCardText");
+
+            if (liveTrafficToggle.checked) {
+                pill.innerText = "Live Traffic: ON";
+                pill.classList.add("live-on");
+                text.innerText = "Updated just now";
+            } else {
+                pill.innerText = "Live Traffic: OFF";
+                pill.classList.remove("live-on");
+                text.innerText = "Simulation mode";
+            }
+        }
+
+        updateLiveUI();
+
+        liveTrafficToggle.addEventListener("change", updateLiveUI);
+
+        function clearRoutes() {
+            if (normalLine) map.removeLayer(normalLine);
+            if (emergencyLine) map.removeLayer(emergencyLine);
+            if (gnnLine) map.removeLayer(gnnLine);
+            if (rlLine) map.removeLayer(rlLine);
+
+            normalLine = null;
+            emergencyLine = null;
+            gnnLine = null;
+            rlLine = null;
+        }
+
+        function clearHospitalMarkers() {
+            hospitalMarkers.forEach(m => map.removeLayer(m));
+            hospitalMarkers = [];
+        }
+
+        function formatMin(val) {
+            if (val === undefined || val === null || isNaN(val)) return "--";
+            return `${Number(val).toFixed(2)} min`;
+        }
+
+        map.on("click", function(e) {
+            const mode = vehicleType.value;
+
+            if (mode === "ambulance") {
+                start = e.latlng;
+                end = null;
+                selectedHospital = null;
+
+                if (startMarker) map.removeLayer(startMarker);
+                if (endMarker) {
+                    map.removeLayer(endMarker);
+                    endMarker = null;
+                }
+
+                clearRoutes();
+                clearHospitalMarkers();
+
+                startMarker = L.marker(start).addTo(map).bindPopup("START").openPopup();
+
+                document.getElementById("selectedHospitalName").innerText = "No hospital selected";
+                document.getElementById("selectedHospitalAddress").innerText = "Dehradun, Uttarakhand";
+
+                fetchNearbyHospitals();
+            } else {
+                if (!start) {
+                    start = e.latlng;
+                    if (startMarker) map.removeLayer(startMarker);
+                    startMarker = L.marker(start).addTo(map).bindPopup("START").openPopup();
+                } else if (!end) {
+                    end = e.latlng;
+                    if (endMarker) map.removeLayer(endMarker);
+                    endMarker = L.marker(end).addTo(map).bindPopup("END").openPopup();
+                    fetchRoute();
+                } else {
+                    start = e.latlng;
+                    end = null;
+
+                    if (startMarker) map.removeLayer(startMarker);
+                    if (endMarker) {
+                        map.removeLayer(endMarker);
+                        endMarker = null;
+                    }
+
+                    clearRoutes();
+                    startMarker = L.marker(start).addTo(map).bindPopup("START").openPopup();
+                }
+            }
+        });
+
+        function fetchNearbyHospitals() {
+            if (!start) return;
+
+            fetch(`/route?start_lat=${start.lat}&start_lng=${start.lng}&mode=ambulance&traffic_mode=${trafficMode.value}&live_traffic=${liveTrafficToggle.checked}`)
+                .then(res => res.json())
+                .then(data => {
+                    hospitalList.innerHTML = "";
+                    clearHospitalMarkers();
+
+                    if (!data.top_hospitals || data.top_hospitals.length === 0) {
+                        hospitalList.innerHTML = `<div class="hospital-item">No hospitals found</div>`;
+                        return;
+                    }
+
+                    data.top_hospitals.forEach(h => {
+                        if (h.lat && h.lng) {
+                            const marker = L.marker([h.lat, h.lng]).addTo(map).bindPopup(h.name);
+                            hospitalMarkers.push(marker);
+                        }
+
+                        const div = document.createElement("div");
+                        div.className = "hospital-item";
+                        div.innerHTML = `<strong>${h.name}</strong><span>${formatMin(h.time)}</span>`;
+                        div.onclick = () => {
+                            selectedHospital = h.name;
+                            document.getElementById("selectedHospitalName").innerText = h.name;
+                            document.getElementById("selectedHospitalAddress").innerText = h.address || "Dehradun, Uttarakhand";
+                            fetchRoute();
+                        };
+                        hospitalList.appendChild(div);
+                    });
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert("Could not fetch hospitals.");
+                });
+        }
+
+        function fetchRoute() {
+            if (!start) {
+                alert("Please select start point first.");
+                return;
+            }
+
+            const mode = vehicleType.value;
+            let url = `/route?start_lat=${start.lat}&start_lng=${start.lng}&mode=${mode}&traffic_mode=${trafficMode.value}&live_traffic=${liveTrafficToggle.checked}`;
+
+            if (mode === "ambulance") {
+                if (!selectedHospital) {
+                    alert("Please select hospital first.");
+                    return;
+                }
+                url += `&hospital_name=${encodeURIComponent(selectedHospital)}`;
+            } else {
+                if (!end) {
+                    alert("Please select end point.");
+                    return;
+                }
+                url += `&end_lat=${end.lat}&end_lng=${end.lng}`;
+            }
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    clearRoutes();
+
+                    if (data.normal_route && data.normal_route.length) {
+                        normalLine = L.polyline(data.normal_route, {
+                            color: "blue",
+                            weight: 4,
+                            opacity: 0.75
+                        }).addTo(map);
+                    }
+
+                    if (data.emergency_route && data.emergency_route.length) {
+                        emergencyLine = L.polyline(data.emergency_route, {
+                            color: "red",
+                            weight: 6,
+                            opacity: 0.9
+                        }).addTo(map);
+                    }
+
+                    if (data.gnn_route && data.gnn_route.length) {
+                        gnnLine = L.polyline(data.gnn_route, {
+                            color: "green",
+                            weight: 4,
+                            opacity: 0.85,
+                            dashArray: "8,8"
+                        }).addTo(map);
+                    }
+
+                    if (data.rl_route && data.rl_route.length) {
+                        rlLine = L.polyline(data.rl_route, {
+                            color: "purple",
+                            weight: 5,
+                            opacity: 0.9
+                        }).addTo(map);
+                    }
+
+                    if (data.emergency_route && data.emergency_route.length) {
+                        map.fitBounds(L.polyline(data.emergency_route).getBounds(), { padding: [40, 40] });
+                    } else if (data.normal_route && data.normal_route.length) {
+                        map.fitBounds(L.polyline(data.normal_route).getBounds(), { padding: [40, 40] });
+                    }
+
+                    document.getElementById("normalTime").innerText = formatMin(data.normal_time);
+                    document.getElementById("emergencyTime").innerText = formatMin(data.emergency_time);
+                    document.getElementById("gnnTime").innerText = formatMin(data.gnn_time);
+                    document.getElementById("rlTime").innerText = formatMin(data.rl_time);
+                    document.getElementById("savedTime").innerText = formatMin(data.time_saved);
+
+                    document.getElementById("etaValue").innerText = formatMin(data.emergency_time);
+                    document.getElementById("distanceValue").innerText = data.distance_km ? `${data.distance_km} km` : "--";
+                    document.getElementById("updatedValue").innerText = "Just now";
+
+                    if (data.top_hospitals && vehicleType.value === "ambulance") {
+                        hospitalList.innerHTML = "";
+                        clearHospitalMarkers();
+
+                        data.top_hospitals.forEach(h => {
+                            if (h.lat && h.lng) {
+                                const marker = L.marker([h.lat, h.lng]).addTo(map).bindPopup(h.name);
+                                hospitalMarkers.push(marker);
+                            }
+
+                            const div = document.createElement("div");
+                            div.className = "hospital-item";
+                            div.innerHTML = `<strong>${h.name}</strong><span>${formatMin(h.time)}</span>`;
+                            div.onclick = () => {
+                                selectedHospital = h.name;
+                                document.getElementById("selectedHospitalName").innerText = h.name;
+                                document.getElementById("selectedHospitalAddress").innerText = h.address || "Dehradun, Uttarakhand";
+                                fetchRoute();
+                            };
+                            hospitalList.appendChild(div);
+                        });
+                    }
+
+                    setupAutoRefresh();
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert("Could not fetch route.");
+                });
+        }
+
+        function setupAutoRefresh() {
+            if (autoRefresh) clearInterval(autoRefresh);
+
+            autoRefresh = setInterval(() => {
+                if (!liveTrafficToggle.checked) return;
+                if (!start) return;
+
+                if (vehicleType.value === "ambulance") {
+                    if (!selectedHospital) return;
+                } else {
+                    if (!end) return;
+                }
+
+                fetchRoute();
+            }, 20000);
+        }
+
+        recalcBtn.addEventListener("click", () => {
+            if (vehicleType.value === "ambulance") {
+                if (selectedHospital) {
+                    fetchRoute();
+                } else if (start) {
+                    fetchNearbyHospitals();
+                } else {
+                    alert("Please click start point on map first.");
+                }
+            } else {
+                fetchRoute();
+            }
+        });
+
+        searchBtn.addEventListener("click", () => {
+            if (!start) {
+                alert("Please click start point first.");
+                return;
+            }
+
+            const value = hospitalSearch.value.trim();
+            if (!value) {
+                alert("Please enter hospital name.");
+                return;
+            }
+
+            selectedHospital = value;
+            document.getElementById("selectedHospitalName").innerText = value;
+            document.getElementById("selectedHospitalAddress").innerText = "Dehradun, Uttarakhand";
+            fetchRoute();
+        });
+
+        vehicleType.addEventListener("change", () => {
+            start = null;
+            end = null;
+            selectedHospital = null;
+
+            if (startMarker) {
+                map.removeLayer(startMarker);
+                startMarker = null;
+            }
+
+            if (endMarker) {
+                map.removeLayer(endMarker);
+                endMarker = null;
+            }
+
+            clearRoutes();
+            clearHospitalMarkers();
+
+            hospitalList.innerHTML = `<div class="hospital-item">Click on map to start</div>`;
+            document.getElementById("selectedHospitalName").innerText = "No hospital selected";
+            document.getElementById("selectedHospitalAddress").innerText = "Dehradun, Uttarakhand";
+
+            document.getElementById("normalTime").innerText = "--";
+            document.getElementById("emergencyTime").innerText = "--";
+            document.getElementById("gnnTime").innerText = "--";
+            document.getElementById("rlTime").innerText = "--";
+            document.getElementById("savedTime").innerText = "--";
+            document.getElementById("etaValue").innerText = "--";
+            document.getElementById("distanceValue").innerText = "--";
+            document.getElementById("updatedValue").innerText = "--";
+        });
+    </script>
+
+</body>
+</html>

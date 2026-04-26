@@ -1,0 +1,10 @@
+flask
+requests
+python-dotenv
+osmnx
+networkx
+torch
+torch-geometric
+numpy
+joblib
+scikit-learn
